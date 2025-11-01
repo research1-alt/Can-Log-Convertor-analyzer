@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Service Engineer AI Assistant</title>
+    
+    <!-- PWA & SEO -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#00529B" />
+    <meta name="description" content="An intelligent chatbot that reads troubleshooting data from a provided sheet and offers step-by-step solutions for service engineers in the field. Admins can load a knowledge base, and engineers can query it using natural language." />
+    
+    <!-- Apple PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Service AI" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-primary': '#00529B',
+              'brand-secondary': '#00A4E4',
+              'brand-light': '#F0F8FF',
+              'warning-bg': '#FFFBEB',
+              'warning-text': '#B45309',
+              'warning-border': '#FDE68A',
+            },
+            animation: {
+              'fade-in-up': 'fadeInUp 0.4s ease-out forwards',
+              'typing-dot': 'typing 1.4s infinite ease-in-out both',
+            },
+            keyframes: {
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              typing: {
+                '0%, 80%, 100%': { transform: 'scale(0)', opacity: '0' },
+                '40%': { transform: 'scale(1.0)', opacity: '1' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.22.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react": "https://esm.sh/react@18.2.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/package/xlsx.mjs",
+    "jszip": "https://esm.sh/jszip@3.10.1",
+    "react-is": "https://esm.sh/react-is@18.2.0",
+    "mammoth": "https://esm.sh/mammoth@1.7.2",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168",
+    "vite": "https://aistudiocdn.com/vite@^7.1.9",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4",
+    "pdfjs-dist/": "https://aistudiocdn.com/pdfjs-dist@^5.4.296/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-100">
+    <div id="root"></div>
+    <script type="module">
+      // Configure the PDF.js worker before the main app loads to avoid race conditions.
+      // This is required for PDF parsing to work correctly in the browser.
+      import * as pdfjsLib from 'pdfjs-dist';
+      // FIX: esm.sh can have issues serving raw worker files. Using jsdelivr is more reliable for this purpose.
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.mjs';
+    </script>
+    <script type="module" src="/index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js').then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }).catch(error => {
+            console.log('ServiceWorker registration failed: ', error);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

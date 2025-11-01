@@ -1,0 +1,10 @@
+<svg width="400" height="200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#f0f8ff"/>
+  <rect x="10" y="10" width="380" height="180" fill="none" stroke="#00529B" stroke-width="2" stroke-dasharray="10 5"/>
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="24px" fill="#00529B">
+    Placeholder Schematic
+  </text>
+  <text x="50%" y="65%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16px" fill="#666">
+    (Replace with your own drawing)
+  </text>
+</svg>
