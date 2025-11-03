@@ -1,4 +1,3 @@
-
 import * as XLSX from 'xlsx';
 import type { CANMessage, CanMatrix, SignalDefinition } from '../types';
 
@@ -167,83 +166,6 @@ export const parseExcelFile = async (file: File): Promise<CANMessage[]> => {
         }
     }
     
-    return messages;
-};
-
-const parseCsvContent = (content: string): any[] => {
-    const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
-    
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    
-    return lines.slice(1).map(line => {
-        const values = line.split(',');
-        const row: {[key: string]: string} = {};
-        headers.forEach((header, i) => {
-            const value = values[i];
-            row[header] = (value || '').trim().replace(/"/g, '');
-        });
-        return row;
-    });
-};
-
-export const parseDecodedFile = async (file: File): Promise<CANMessage[]> => {
-    let jsonData: any[] = [];
-    const lowerFileName = file.name.toLowerCase();
-
-    if (lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls')) {
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data);
-        const sheetName = workbook.SheetNames[0];
-        if (!sheetName) return [];
-        const worksheet = workbook.Sheets[sheetName];
-        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: null });
-    } else { // Assume CSV
-        const content = await file.text();
-        jsonData = parseCsvContent(content);
-    }
-    
-    if (jsonData.length === 0) return [];
-
-    const headers = Object.keys(jsonData[0]);
-    const timestampHeader = headers[0];
-    const signalHeaders = headers.slice(1);
-
-    if (!timestampHeader) {
-        throw new Error("Could not find a timestamp column in the first column of the decoded file.");
-    }
-
-    const messages: CANMessage[] = [];
-    for (const row of jsonData) {
-        // Handle rows that might be empty or invalid
-        if (!row || row[timestampHeader] === null || row[timestampHeader] === undefined) continue;
-
-        const timestamp = parseFloat(String(row[timestampHeader]));
-
-        if (isNaN(timestamp)) {
-            console.warn('Skipping row due to invalid timestamp:', row);
-            continue;
-        }
-
-        const decodedSignals: { [key: string]: number } = {};
-        signalHeaders.forEach(signalName => {
-            const value = parseFloat(row[signalName]);
-            if (!isNaN(value)) {
-                decodedSignals[signalName] = value;
-            }
-        });
-
-        if (Object.keys(decodedSignals).length > 0) {
-             messages.push({
-                timestamp: timestamp,
-                id: 'DECODED_DATA', // Placeholder ID
-                dlc: 0,
-                data: [],
-                isTx: false,
-                decoded: decodedSignals
-            });
-        }
-    }
     return messages;
 };
 

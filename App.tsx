@@ -1,17 +1,7 @@
-import React, { useState, Suspense, lazy } from 'react';
-import type { CANMessage } from './src/types';
-import { HomePage } from './src/components/HomePage';
-
-const DashboardPage = lazy(() => import('./src/components/DashboardPage').then(module => ({ default: module.DashboardPage })));
-
-const LoadingDashboard: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-[80vh] text-gray-400">
-        <div className="w-10 h-10 border-4 border-t-transparent border-blue-400 rounded-full animate-spin" role="status">
-            <span className="sr-only">Loading...</span>
-        </div>
-        <p className="mt-4 text-lg">Loading Dashboard...</p>
-    </div>
-);
+import React, { useState } from 'react';
+import type { CANMessage } from './types';
+import { HomePage } from './components/HomePage';
+import { DashboardPage } from './components/DashboardPage';
 
 const App: React.FC = () => {
     const [processedData, setProcessedData] = useState<{ messages: CANMessage[], files: File[] } | null>(null);
@@ -30,13 +20,11 @@ const App: React.FC = () => {
         <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
             <div className={`w-full ${maxWClass} mx-auto transition-all duration-500`}>
                 {processedData ? (
-                    <Suspense fallback={<LoadingDashboard />}>
-                        <DashboardPage 
-                            initialMessages={processedData.messages} 
-                            initialFiles={processedData.files} 
-                            onGoBack={handleGoBack} 
-                        />
-                    </Suspense>
+                    <DashboardPage 
+                        initialMessages={processedData.messages} 
+                        initialFiles={processedData.files} 
+                        onGoBack={handleGoBack} 
+                    />
                 ) : (
                     <HomePage onDataProcessed={handleDataProcessed} />
                 )}

@@ -6,7 +6,7 @@ import { FaultAnalysis } from './FaultAnalysis';
 import { getInitialAnalysisPrompt, getSystemInstruction, canDataQueryTool, modelName } from '../services/geminiService';
 import { defaultMatrix } from '../services/defaultMatrix';
 import type { CANMessage, ChatMessage } from '../types';
-import { SparklesIcon, LineChartIcon, DocumentTextIcon, RefreshCwIcon, ArrowLeftIcon, ListIcon, AlertTriangleIcon } from './IconComponents';
+import { SparklesIcon, LineChartIcon, DocumentTextIcon, RefreshCwIcon, ArrowLeftIcon, ListIcon } from './IconComponents';
 import { GoogleGenAI } from '@google/genai';
 import type { Content } from '@google/genai';
 
@@ -169,11 +169,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
             setError('No processed data available to analyze. Please process files first.');
             return;
         }
-         if (!process.env.API_KEY) {
-            setError('Error: An API Key must be set when running in a browser');
-            return;
-        }
-
         setIsAnalyzing(true);
         setError(null);
 
@@ -187,6 +182,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
                 parts: [{ text: initialPrompt }]
             }];
             
+            setChatHistory(initialHistory);
+            
             const response = await ai.models.generateContent({
                 model: modelName,
                 contents: initialHistory,
@@ -198,93 +195,82 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
             
             const modelResponsePart = response.candidates?.[0]?.content;
             if (modelResponsePart) {
-                setChatHistory([...initialHistory, modelResponsePart]);
-            } else {
-                setInitialPromptText(null);
-                setError('The AI model did not return a valid response. This could be due to the content of the logs or a temporary issue. Please try again.');
+                setChatHistory(prev => [...prev, modelResponsePart]);
             }
         } catch (err) {
-            setInitialPromptText(null);
-            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during analysis.';
-            setError(errorMessage.includes('API key') ? 'Error: An API Key must be set when running in a browser' : errorMessage);
+            setError(err instanceof Error ? err.message : 'An unknown error occurred during analysis.');
         } finally {
             setIsAnalyzing(false);
         }
     };
     
     const handleSendChatMessage = async (message: string) => {
-        if (!process.env.API_KEY) {
-            setError('Error: An API Key must be set when running in a browser');
-            return;
-        }
-
         setIsAnalyzing(true);
-        setError(null);
         const newUserContent: Content = { role: 'user', parts: [{ text: message }] };
-        const currentHistory = [...chatHistory, newUserContent];
-        setChatHistory(currentHistory);
-
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        setChatHistory(prevHistory => {
+            const currentHistory = [...prevHistory, newUserContent];
             
-            let response = await ai.models.generateContent({
-                model: modelName,
-                contents: currentHistory,
-                config: {
-                    systemInstruction,
-                    tools: [{ functionDeclarations: [canDataQueryTool] }]
-                }
-            });
-
-            let modelResponsePart = response.candidates?.[0]?.content;
-            let historyWithToolCalls = [...currentHistory];
-
-            while (modelResponsePart?.parts.some(p => p.functionCall)) {
-                const functionCallPart = modelResponsePart.parts.find(p => p.functionCall)!;
-                const { name, args } = functionCallPart.functionCall!;
-
-                if (name === 'query_can_data') {
-                    const result = runDataQuery(args);
-                    
-                    historyWithToolCalls.push(modelResponsePart);
-                    historyWithToolCalls.push({
-                        role: 'tool',
-                        parts: [{ functionResponse: { name, response: { result } } }]
-                    });
-
-                    response = await ai.models.generateContent({
+            const getResponse = async () => {
+                try {
+                    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                    let response = await ai.models.generateContent({
                         model: modelName,
-                        contents: historyWithToolCalls,
+                        contents: currentHistory,
                         config: {
                             systemInstruction,
                             tools: [{ functionDeclarations: [canDataQueryTool] }]
                         }
                     });
-                    modelResponsePart = response.candidates?.[0]?.content;
-                } else {
-                    break; 
-                }
-            }
 
-            if (modelResponsePart) {
-                 setChatHistory([...historyWithToolCalls, modelResponsePart]);
-            } else {
-                setError('The AI model did not return a valid response. Please try again.');
-                setChatHistory(chatHistory); // Rollback
-            }
-        } catch(err) {
-            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-            setError(errorMessage.includes('API key') ? 'Error: An API Key must be set when running in a browser' : errorMessage);
-            setChatHistory(chatHistory); // Rollback
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
+                    let modelResponsePart = response.candidates?.[0]?.content;
+                    let historyForNextTurn = [...currentHistory];
+
+                    while (modelResponsePart?.parts.some(p => p.functionCall)) {
+                        const functionCallPart = modelResponsePart.parts.find(p => p.functionCall)!;
+                        const { name, args } = functionCallPart.functionCall!;
+
+                        if (name === 'query_can_data') {
+                            const result = runDataQuery(args);
+                            
+                            historyForNextTurn.push(modelResponsePart);
+                            historyForNextTurn.push({
+                                role: 'tool',
+                                parts: [{ functionResponse: { name, response: { result } } }]
+                            });
+
+                            response = await ai.models.generateContent({
+                                model: modelName,
+                                contents: historyForNextTurn,
+                                config: {
+                                    systemInstruction,
+                                    tools: [{ functionDeclarations: [canDataQueryTool] }]
+                                }
+                            });
+                            modelResponsePart = response.candidates?.[0]?.content;
+                        } else {
+                            break; 
+                        }
+                    }
+
+                    if (modelResponsePart) {
+                         setChatHistory(prev => [...prev, modelResponsePart]);
+                    }
+                } catch(err) {
+                    setError(err instanceof Error ? `Failed to get response: ${err.message}` : 'An unknown error occurred.');
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            getResponse();
+            return currentHistory; 
+        });
+    }
 
     const handleResetChat = useCallback(() => {
         setChatHistory([]);
         setInitialPromptText(null);
-        setError(null);
     }, []);
     
     return (
@@ -328,16 +314,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
                     )
                 }
             </div>
-
-            {error && (
-                <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative flex items-start" role="alert">
-                    <AlertTriangleIcon className="w-5 h-5 mr-3 mt-1 flex-shrink-0"/>
-                    <div>
-                        <strong className="font-bold">Error: </strong>
-                        <span className="block sm:inline">{error.replace('GoError: ', '')}</span>
-                    </div>
-                </div>
-            )}
             
             {showChart && (
                 <div className="border-t pt-6 space-y-4 animate-fade-in" style={{ borderColor: 'var(--color-border)'}}>

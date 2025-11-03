@@ -18,7 +18,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
         setFiles([]);
         setError(null);
     }, []);
-
+    
     const handleFileChange = (selectedFiles: FileList | null) => {
         if (selectedFiles) {
             resetState(); // Reset on new file selection
@@ -92,9 +92,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
             }}
             className="backdrop-blur-sm rounded-2xl p-6 sm:p-8 space-y-8">
                 
-                <div className="flex items-center gap-3 p-1" style={{ borderBottom: '1px solid var(--color-border)'}}>
-                    <CodeBracketIcon className="w-5 h-5 text-blue-400" />
-                    <h2 className="text-lg font-semibold text-gray-200 py-2">CAN File Decode & Analysis</h2>
+                <div className="flex border-b" style={{ borderColor: 'var(--color-border)'}}>
+                    <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 border-blue-500 text-blue-400">
+                        <CodeBracketIcon className="w-5 h-5" />
+                        CAN File Decode
+                    </div>
                 </div>
                 
                 <div className="animate-fade-in">
