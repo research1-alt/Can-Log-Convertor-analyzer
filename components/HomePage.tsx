@@ -1,17 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import { FileUpload } from './FileUpload';
 import { Spinner } from './Spinner';
-import { parseCanLogFile, decodeMessages, parseExcelFile, parseDecodedFile } from '../services/canParser';
+import { parseCanLogFile, decodeMessages, parseExcelFile } from '../services/canParser';
 import { defaultMatrix } from '../services/defaultMatrix';
 import type { CANMessage } from '../types';
-import { FileIcon, AlertTriangleIcon, CodeBracketIcon, ChartBarIcon, ComputerDesktopIcon } from './IconComponents';
+import { FileIcon, AlertTriangleIcon, CodeBracketIcon, ComputerDesktopIcon } from './IconComponents';
 
 interface HomePageProps {
     onDataProcessed: (messages: CANMessage[], files: File[]) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
-    const [mode, setMode] = useState<'decode' | 'visualize'>('decode');
     const [files, setFiles] = useState<File[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -20,17 +19,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
         setFiles([]);
         setError(null);
     }, []);
-    
-    const handleModeChange = (newMode: 'decode' | 'visualize') => {
-        if (mode !== newMode) {
-            resetState();
-            setMode(newMode);
-        }
-    };
 
     const handleFileChange = (selectedFiles: FileList | null) => {
         if (selectedFiles) {
-            resetState(); // Reset on new file selection
+            resetState();
             const acceptedFiles = Array.from(selectedFiles);
             setFiles(acceptedFiles);
         }
@@ -79,29 +71,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
         }
     }, [files, onDataProcessed]);
 
-    const processDecodedFile = useCallback(async () => {
-        if (files.length === 0) {
-            setError('Please select a decoded data file.');
-            return;
-        }
-
-        setIsLoading(true);
-        setError(null);
-        
-        try {
-            const messages = await parseDecodedFile(files[0]);
-            if (messages.length === 0) {
-                setError('No data found in the provided file.');
-            } else {
-                onDataProcessed(messages, files);
-            }
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An unknown error occurred during parsing.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [files, onDataProcessed]);
-
     return (
         <>
             <header className="text-center mb-10">
@@ -123,51 +92,20 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
             }}
             className="backdrop-blur-sm rounded-2xl p-6 sm:p-8 space-y-8">
                 
-                <div className="flex border-b" style={{ borderColor: 'var(--color-border)'}}>
-                        <button
-                        onClick={() => handleModeChange('decode')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${
-                            mode === 'decode' ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
-                    >
-                        <CodeBracketIcon className="w-5 h-5" />
-                        CAN File Decode
-                    </button>
-                    <button
-                        onClick={() => handleModeChange('visualize')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${
-                            mode === 'visualize' ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
-                    >
-                        <ChartBarIcon className="w-5 h-5" />
-                        Graphical Representation
-                    </button>
+                <div className="flex items-center gap-3 p-1" style={{ borderBottom: '1px solid var(--color-border)'}}>
+                    <CodeBracketIcon className="w-5 h-5 text-blue-400" />
+                    <h2 className="text-lg font-semibold text-gray-200 py-2">CAN File Decode & Analysis</h2>
                 </div>
                 
-                {mode === 'decode' && (
-                    <div className="animate-fade-in">
-                        <div className="grid grid-cols-1 gap-6">
-                            <FileUpload 
-                                onFileChange={handleFileChange}
-                                title="Upload CAN Log File(s)"
-                                description="Drop .log, .trc, .xlsx, or any text-based log here"
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {mode === 'visualize' && (
-                    <div className="animate-fade-in">
+                <div className="animate-fade-in">
+                    <div className="grid grid-cols-1 gap-6">
                         <FileUpload 
-                            onFileChange={handleFileChange} 
-                            multiple={false}
-                            accept=".csv,.xlsx,.xls"
-                            title="Upload Decoded Data"
-                            description="Drop a CSV or Excel file here"
+                            onFileChange={handleFileChange}
+                            title="Upload CAN Log File(s)"
+                            description="Drop .log, .trc, .xlsx, or any text-based log here"
                         />
                     </div>
-                )}
-
+                </div>
 
                 {files.length > 0 && (
                     <div className="border-t pt-6" style={{ borderColor: 'var(--color-border)'}}>
@@ -186,11 +124,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
 
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                     <button
-                        onClick={mode === 'decode' ? processRawLogFiles : processDecodedFile}
+                        onClick={processRawLogFiles}
                         disabled={isLoading || files.length === 0}
                         className="w-full sm:w-auto flex-1 inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 disabled:bg-gray-600 disabled:saturate-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
                     >
-                        {isLoading ? <Spinner /> : (mode === 'decode' ? 'Convert & Process' : 'Process & Visualize')}
+                        {isLoading ? <Spinner /> : 'Convert & Process'}
                     </button>
                 </div>
 
