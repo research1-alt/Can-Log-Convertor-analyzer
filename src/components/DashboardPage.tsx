@@ -174,7 +174,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
         setError(null);
 
         try {
-            // Fix: Initialize GoogleGenAI with process.env.API_KEY as per guidelines.
+            // FIX: Use process.env.API_KEY as per guidelines
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const initialPrompt = getInitialAnalysisPrompt();
             setInitialPromptText(initialPrompt);
@@ -200,7 +200,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
                 setChatHistory(prev => [...prev, modelResponsePart]);
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An unknown error occurred during analysis.');
+            // FIX: Removed API Key specific error message
+            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during analysis.';
+            setError(`Failed to start analysis. ${errorMessage}.`);
         } finally {
             setIsAnalyzing(false);
         }
@@ -208,6 +210,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
     
     const handleSendChatMessage = async (message: string) => {
         setIsAnalyzing(true);
+        setError(null);
         const newUserContent: Content = { role: 'user', parts: [{ text: message }] };
         
         setChatHistory(prevHistory => {
@@ -215,7 +218,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
             
             const getResponse = async () => {
                 try {
-                    // Fix: Initialize GoogleGenAI with process.env.API_KEY as per guidelines.
+                    // FIX: Use process.env.API_KEY as per guidelines
                     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
                     let response = await ai.models.generateContent({
                         model: modelName,
@@ -260,7 +263,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
                          setChatHistory(prev => [...prev, modelResponsePart]);
                     }
                 } catch(err) {
-                    setError(err instanceof Error ? `Failed to get response: ${err.message}` : 'An unknown error occurred.');
+                     // FIX: Removed API Key specific error message
+                     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+                    setError(`Failed to get response. ${errorMessage}.`);
                 } finally {
                     setIsAnalyzing(false);
                 }
@@ -274,6 +279,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
     const handleResetChat = useCallback(() => {
         setChatHistory([]);
         setInitialPromptText(null);
+        setError(null);
     }, []);
     
     return (
