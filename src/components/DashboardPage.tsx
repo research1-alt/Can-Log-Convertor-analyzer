@@ -6,7 +6,8 @@ import { FaultAnalysis } from './FaultAnalysis';
 import { getInitialAnalysisPrompt, getSystemInstruction, canDataQueryTool, modelName } from '../services/geminiService';
 import { defaultMatrix } from '../services/defaultMatrix';
 import type { CANMessage, ChatMessage } from '../types';
-import { SparklesIcon, LineChartIcon, DocumentTextIcon, RefreshCwIcon, ArrowLeftIcon, ListIcon } from './IconComponents';
+// Fix: Import AlertTriangleIcon to resolve usage error.
+import { SparklesIcon, LineChartIcon, DocumentTextIcon, RefreshCwIcon, ArrowLeftIcon, ListIcon, AlertTriangleIcon } from './IconComponents';
 import { GoogleGenAI } from '@google/genai';
 import type { Content } from '@google/genai';
 
@@ -173,6 +174,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
         setError(null);
 
         try {
+            // Fix: Initialize GoogleGenAI with process.env.API_KEY as per guidelines.
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const initialPrompt = getInitialAnalysisPrompt();
             setInitialPromptText(initialPrompt);
@@ -213,6 +215,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
             
             const getResponse = async () => {
                 try {
+                    // Fix: Initialize GoogleGenAI with process.env.API_KEY as per guidelines.
                     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
                     let response = await ai.models.generateContent({
                         model: modelName,
@@ -324,6 +327,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
              {showFaultReport && (
                  <div className="border-t pt-6 space-y-4 animate-fade-in" style={{ borderColor: 'var(--color-border)'}}>
                     <FaultAnalysis messages={processedMessages} />
+                </div>
+            )}
+            
+            {error && (
+                <div className="border-t pt-6" style={{ borderColor: 'var(--color-border)'}}>
+                    <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative flex items-start" role="alert">
+                        <div className="flex-shrink-0">
+                             <AlertTriangleIcon className="w-5 h-5 mr-3 mt-0.5"/>
+                        </div>
+                        <div>
+                            <strong className="font-bold">An Error Occurred:</strong>
+                            <span className="block text-sm">{error}</span>
+                        </div>
+                    </div>
                 </div>
             )}
 
