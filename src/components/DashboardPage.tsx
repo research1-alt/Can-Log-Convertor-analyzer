@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import { Spinner } from './Spinner';
 import { Dashboard } from './Dashboard';
@@ -10,8 +9,6 @@ import type { CANMessage, ChatMessage } from '../types';
 import { SparklesIcon, LineChartIcon, DocumentTextIcon, RefreshCwIcon, ArrowLeftIcon, ListIcon } from './IconComponents';
 import { GoogleGenAI } from '@google/genai';
 import type { Content } from '@google/genai';
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 interface DashboardPageProps {
     initialMessages: CANMessage[];
@@ -176,6 +173,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
         setError(null);
 
         try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const initialPrompt = getInitialAnalysisPrompt();
             setInitialPromptText(initialPrompt);
 
@@ -215,6 +213,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
             
             const getResponse = async () => {
                 try {
+                    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
                     let response = await ai.models.generateContent({
                         model: modelName,
                         contents: currentHistory,
