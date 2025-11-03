@@ -1,29 +1,35 @@
+import * as XLSX from 'xlsx';
 import type { CANMessage, CanMatrix, SignalDefinition } from '../types';
 
-// 'log' or 'trc'. This determines which parser is tried first for files with
-// extensions other than .log or .trc. This provides a configurable default.
-// FIX: Changed from `const` to `let`. When declared as a `const`, the type of `DEFAULT_PARSER_FOR_UNKNOWN_TYPES` was narrowed to the literal 'log', causing a type error during comparison with 'trc'. Using `let` preserves the union type `'log' | 'trc'` and fixes the error.
 let DEFAULT_PARSER_FOR_UNKNOWN_TYPES: 'log' | 'trc' = 'log';
-
-// Parses candump (.log) format, e.g., (1616522338.123456) can0 123#1122334455667788
-// Now handles integer timestamps like (1616522338)
 const LOG_REGEX = /^\s*\((\d+(?:\.\d+)?)\)\s+\w+\s+([0-9A-Fa-f]+)#([0-9A-Fa-f]*)\s*$/;
-
-// Parses a common PCAN-View (.trc) format, e.g., 1) 12.3456 Rx 0x123 8 11 22 33 44 55 66 77 88
-// Now handles integer timestamps like 1) 12 Rx ...
-// FIX: Changed data regex from `+` to `*` to correctly handle messages with 0 data bytes.
 const TRC_REGEX = /^\s*\d+\)\s+(\d+(?:\.\d+)?)\s+(Rx|Tx)\s+([0-9A-Fa-fxX]+)\s+\d+\s*([0-9A-Fa-f\s]*)$/;
-
-// New parser for PCAN-View format based on user-provided header.
-// This format has no ')' after the message number and includes a 'Type' column.
-// e.g., 1 12.3456 MSG_TYPE 123 Rx 8 11 22 33 44
 const PCAN_VIEW_REGEX = /^\s*\d+\s+([\d.]+)\s+\w+\s+([0-9A-Fa-fxX]+)\s+(Rx|Tx)\s+\d+\s*([0-9A-Fa-f\s]*)$/;
-
-// New parser for the PCAN-View v5 format provided by the user.
-// Format: 1) 39.9 Rx 14234050 8 00 00 05...
-// It has a ')' after message number, and the ID is hex without '0x'.
 const PCAN_V5_REGEX = /^\s*\d+\)\s+([\d.]+)\s+(Rx|Tx)\s+([0-9A-Fa-f]+)\s+\d+\s*([0-9A-Fa-f\s]*)$/;
+const CUSTOM_FORMAT_REGEX = /^\s*(\d+)\s+(0x[0-9A-Fa-f]+|[0-9A-Fa-f]+)\s+(\d+)\s+([0-9A-Fa-f\s]*)\s*$/;
 
+
+const parseCustomFormatLine = (line: string): CANMessage | null => {
+    const lowerLine = line.toLowerCase();
+    if (lowerLine.includes('timestamp') || lowerLine.includes('can_id') || lowerLine.includes('data(hex)')) {
+        return null;
+    }
+
+    const match = line.match(CUSTOM_FORMAT_REGEX);
+    if (!match) return null;
+
+    const [, timestamp, id, dlc, rawData] = match;
+    const data = rawData.trim().split(/\s+/).filter(Boolean);
+    const parsedId = id.toLowerCase().startsWith('0x') ? id : `0x${id}`;
+
+    return {
+        timestamp: parseInt(timestamp, 10),
+        id: parsedId.toUpperCase(),
+        dlc: parseInt(dlc, 10),
+        data: data.map(byte => byte.toUpperCase()),
+        isTx: false,
+    };
+};
 
 const parseLogLine = (line: string): CANMessage | null => {
     const match = line.match(LOG_REGEX);
@@ -37,7 +43,7 @@ const parseLogLine = (line: string): CANMessage | null => {
         id: `0x${id.toUpperCase()}`,
         dlc: data.length,
         data: data.map(byte => byte.toUpperCase()),
-        isTx: false, // .log format doesn't specify direction, default to Rx
+        isTx: false,
     };
 };
 
@@ -46,7 +52,7 @@ const parseTrcLine = (line: string): CANMessage | null => {
     if (!match) return null;
 
     const [, timestamp, direction, id, rawData] = match;
-    const data = rawData.trim().split(/\s+/).filter(Boolean); // Use filter to handle empty data strings
+    const data = rawData.trim().split(/\s+/).filter(Boolean);
 
     return {
         timestamp: parseFloat(timestamp),
@@ -66,7 +72,7 @@ const parsePcanViewLine = (line: string): CANMessage | null => {
     if (!match) return null;
 
     const [, timestamp, id, direction, rawData] = match;
-    const data = rawData.trim().split(/\s+/).filter(Boolean); // Filter out empty strings from multiple spaces
+    const data = rawData.trim().split(/\s+/).filter(Boolean);
 
     return {
         timestamp: parseFloat(timestamp),
@@ -86,27 +92,154 @@ const parsePcanV5Line = (line: string): CANMessage | null => {
 
     return {
         timestamp: parseFloat(timestamp),
-        id: `0x${id.toUpperCase()}`, // This format's ID has no '0x' prefix, so we add it.
+        id: `0x${id.toUpperCase()}`,
         dlc: data.length,
         data: data.map(byte => byte.toUpperCase()),
         isTx: direction === 'Tx',
     };
 };
 
-/**
- * Parses the content of a CAN log file line by line.
- * It intelligently tries different known formats for each line, making it robust
- * against mixed-format files or files with headers/comments.
- */
+export const parseExcelFile = async (file: File): Promise<CANMessage[]> => {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) return [];
+
+    const worksheet = workbook.Sheets[sheetName];
+    const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+    const messages: CANMessage[] = [];
+    
+    const findHeader = (headers: string[], possibleNames: string[]): string | undefined => {
+        for (const name of possibleNames) {
+            const header = headers.find(h => h.toLowerCase() === name.toLowerCase());
+            if (header) return header;
+        }
+        return undefined;
+    };
+    
+    if (json.length === 0) return [];
+
+    const headers = Object.keys(json[0]);
+    const timestampHeader = findHeader(headers, ['timestamp', 'time']);
+    const idHeader = findHeader(headers, ['id', 'can id', 'canid', 'can_id', 'arbitration id', 'message id']);
+    const dlcHeader = findHeader(headers, ['dlc', 'data length code', 'len', 'length']);
+    const dataHeader = findHeader(headers, ['data', 'payload', 'data bytes', 'data(hex)']);
+    const typeHeader = findHeader(headers, ['type', 'direction', 'tx/rx']);
+
+    if (!timestampHeader || !idHeader || !dlcHeader || !dataHeader) {
+        throw new Error('Excel file must contain at least "Timestamp", "ID", "DLC", and "Data" columns.');
+    }
+
+    for (const row of json) {
+        try {
+            const timestamp = row[timestampHeader];
+            const id = row[idHeader];
+            const dlc = row[dlcHeader];
+            const rawData = row[dataHeader];
+
+            if (timestamp === undefined || id === undefined || dlc === undefined || rawData === undefined) {
+                console.warn("Skipping a row in Excel file due to missing essential data:", row);
+                continue;
+            }
+
+            const idStr = String(id);
+            const dataStr = String(rawData).trim().replace(/0x/gi, '');
+            const dataBytes = dataStr.split(/[\s,]+/).filter(Boolean);
+
+            const message: CANMessage = {
+                timestamp: parseFloat(String(timestamp)),
+                id: idStr.startsWith('0x') ? idStr.toUpperCase() : `0x${idStr.toUpperCase()}`,
+                dlc: parseInt(String(dlc), 10),
+                data: dataBytes.map(byte => byte.toUpperCase()),
+                isTx: typeHeader && row[typeHeader] ? String(row[typeHeader]).toLowerCase().includes('tx') : false,
+            };
+            
+            if (isNaN(Number(message.timestamp)) || isNaN(message.dlc)) {
+                 console.warn("Skipping a row in Excel file due to invalid numeric data:", row);
+                 continue;
+            }
+
+            messages.push(message);
+        } catch (e) {
+            console.warn("Skipping a row in Excel file due to parsing error:", e, "Row:", row);
+        }
+    }
+    
+    return messages;
+};
+
+const parseCsvContent = (content: string): any[] => {
+    const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) return [];
+    
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    return lines.slice(1).map(line => {
+        const values = line.split(',');
+        const row: {[key: string]: string} = {};
+        headers.forEach((header, i) => {
+            const value = values[i];
+            row[header] = (value || '').trim().replace(/"/g, '');
+        });
+        return row;
+    });
+};
+
+export const parseDecodedFile = async (file: File): Promise<CANMessage[]> => {
+    let jsonData: any[] = [];
+    const lowerFileName = file.name.toLowerCase();
+
+    if (lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls')) {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) return [];
+        const worksheet = workbook.Sheets[sheetName];
+        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+    } else { // Assume CSV
+        const content = await file.text();
+        jsonData = parseCsvContent(content);
+    }
+    
+    if (jsonData.length === 0) return [];
+
+    const headers = Object.keys(jsonData[0]);
+    const timestampHeader = headers[0];
+    const signalHeaders = headers.slice(1);
+
+    if (!timestampHeader) {
+        throw new Error("Could not find a timestamp column in the first column of the decoded file.");
+    }
+
+    return jsonData.map(row => {
+        const decodedSignals: { [key: string]: number } = {};
+        signalHeaders.forEach(signalName => {
+            const value = parseFloat(row[signalName]);
+            if (!isNaN(value)) {
+                decodedSignals[signalName] = value;
+            }
+        });
+
+        return {
+            timestamp: row[timestampHeader],
+            id: 'DECODED_DATA', // Placeholder ID
+            dlc: 0,
+            data: [],
+            isTx: false,
+            decoded: decodedSignals
+        };
+    }).filter(msg => msg.decoded && Object.keys(msg.decoded).length > 0);
+};
+
 export const parseCanLogFile = (content: string, fileName: string): CANMessage[] => {
-    const lines = content.split(/\r?\n/); // Use a regex to handle both \n and \r\n line endings
+    const lines = content.split(/\r?\n/);
     const lowerFileName = fileName.toLowerCase();
     const messages: CANMessage[] = [];
 
-    const logParsers = [parseLogLine, parsePcanV5Line, parseTrcLine, parsePcanViewLine];
-    const trcParsers = [parsePcanV5Line, parseTrcLine, parsePcanViewLine, parseLogLine];
+    const logParsers = [parseCustomFormatLine, parseLogLine, parsePcanV5Line, parseTrcLine, parsePcanViewLine];
+    const trcParsers = [parseCustomFormatLine, parsePcanV5Line, parseTrcLine, parsePcanViewLine, parseLogLine];
 
-    // Determine the primary order of parsers based on file extension
     let orderedParsers = DEFAULT_PARSER_FOR_UNKNOWN_TYPES === 'log' ? logParsers : trcParsers;
     if (lowerFileName.endsWith('.log')) {
         orderedParsers = logParsers;
@@ -116,20 +249,17 @@ export const parseCanLogFile = (content: string, fileName: string): CANMessage[]
 
     for (const line of lines) {
         const trimmedLine = line.trim();
-        // Skip empty lines or comments
         if (!trimmedLine || trimmedLine.startsWith(';')) {
             continue;
         }
 
-        // Try each parser in the ordered list until one succeeds
         for (const parser of orderedParsers) {
             const message = parser(trimmedLine);
             if (message) {
                 messages.push(message);
-                break; // Success, move to the next line
+                break;
             }
         }
-        // If no parser matched, the line is simply ignored.
     }
 
     return messages;
@@ -139,32 +269,21 @@ const extractSignalValue = (data: Uint8Array, signal: SignalDefinition): number 
     let rawValue = 0;
     
     if (signal.isLittleEndian) {
-        // Little-endian (Intel)
         for (let i = 0; i < signal.length; i++) {
             const bitIndex = signal.startBit + i;
             const byteIndex = Math.floor(bitIndex / 8);
-            
-            // Bounds check: ensure we don't read past the message's actual data length
             if (byteIndex >= data.length) continue;
-
             const bitInByte = bitIndex % 8;
             if ((data[byteIndex] >> bitInByte) & 1) {
                 rawValue |= 1 << i;
             }
         }
     } else {
-        // Big-endian (Motorola)
         let bitCount = 0;
         for (let i = 0; i < 8 * 8; i++) {
             const byteIndex = Math.floor(i / 8);
-
-            // Bounds check: Stop if we're reading past the actual data payload of the message
-            if (byteIndex >= data.length) {
-                break;
-            }
-            
+            if (byteIndex >= data.length) break;
             const bitInByte = 7 - (i % 8);
-
             if (i >= signal.startBit && i < signal.startBit + signal.length) {
                 if ((data[byteIndex] >> bitInByte) & 1) {
                     rawValue |= 1 << (signal.length - 1 - bitCount);
@@ -175,7 +294,6 @@ const extractSignalValue = (data: Uint8Array, signal: SignalDefinition): number 
     }
 
     if (signal.isSigned && (rawValue & (1 << (signal.length - 1)))) {
-        // Two's complement for signed values
         rawValue -= 1 << signal.length;
     }
 

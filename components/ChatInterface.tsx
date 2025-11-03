@@ -28,38 +28,38 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, onSendMe
     };
 
     return (
-        <div className="bg-gray-900/70 border border-gray-700 rounded-lg flex flex-col h-[500px]">
+        <div className="border rounded-lg flex flex-col h-[500px]" style={{backgroundColor: 'rgba(13, 119, 248, 0.03)', borderColor: 'var(--color-border)'}}>
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
                 {messages.map((msg, index) => (
                     <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-lg p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                        <div className={`max-w-xl p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600/80' : 'bg-gray-700/60'}`}>
                             <pre className="whitespace-pre-wrap text-gray-200 font-sans text-sm leading-relaxed">{msg.content}</pre>
                         </div>
                     </div>
                 ))}
                 {isLoading && messages[messages.length-1]?.role === 'user' && (
                      <div className="flex justify-start">
-                        <div className="max-w-lg p-3 rounded-lg bg-gray-700">
+                        <div className="max-w-lg p-3 rounded-lg bg-gray-700/60">
                            <Spinner />
                         </div>
                     </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>
-            <div className="p-4 border-t border-gray-700">
-                <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+            <div className="p-4 border-t" style={{ borderColor: 'var(--color-border)'}}>
+                <form onSubmit={handleSubmit} className="flex items-center space-x-3">
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Ask a follow-up question..."
                         disabled={isLoading}
-                        className="flex-1 w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-200"
+                        className="flex-1 w-full px-4 py-2 bg-gray-800/80 border border-gray-600/80 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-200"
                     />
                     <button
                         type="submit"
                         disabled={isLoading || !input.trim()}
-                        className="p-2 bg-blue-600 rounded-full text-white hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-colors"
+                        className="p-3 bg-blue-600 rounded-full text-white hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all transform hover:scale-110"
                         aria-label="Send message"
                     >
                         <SendIcon className="w-5 h-5" />

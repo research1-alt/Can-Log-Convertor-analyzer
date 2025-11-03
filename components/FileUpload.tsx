@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { UploadCloudIcon } from './IconComponents';
 
@@ -43,32 +42,36 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         onFileChange(e.target.files);
     };
 
-    const dragDropClasses = isDragging ? 'border-blue-500 bg-gray-700/50' : 'border-gray-600';
+    const borderStyle = isDragging ? { borderColor: 'var(--color-accent)', boxShadow: '0 0 15px -2px var(--color-accent-glow)'} : { borderColor: 'var(--color-border)' };
 
     return (
         <div 
-            className={`relative group w-full p-8 border-2 border-dashed ${dragDropClasses} rounded-xl text-center cursor-pointer transition-all duration-300`}
+            className="relative group w-full p-8 border rounded-xl text-center cursor-pointer transition-all duration-300"
+            style={{ backgroundColor: 'rgba(13, 119, 248, 0.03)', ...borderStyle }}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            onClick={() => document.getElementById(`file-input-${multiple ? 'multi' : 'single'}`)?.click()}
+            onClick={() => document.getElementById(`file-input-${multiple ? 'multi' : 'single'}${accept}`)?.click()}
         >
             <input
                 type="file"
-                id={`file-input-${multiple ? 'multi' : 'single'}`}
+                id={`file-input-${multiple ? 'multi' : 'single'}${accept}`}
                 className="hidden"
                 multiple={multiple}
                 onChange={handleChange}
                 accept={accept}
             />
             <div className="flex flex-col items-center justify-center space-y-4">
-                <UploadCloudIcon className={`w-16 h-16 text-gray-500 group-hover:text-blue-400 transition-colors duration-300 ${isDragging ? 'text-blue-400' : ''}`} />
-                <p className="text-gray-400">
-                    <span className="font-semibold text-blue-400">{title}</span> {description}
-                </p>
-                <p className="text-xs text-gray-500">
-                    {multiple ? "Upload any CAN log file (.log, .trc, etc.)" : "Upload a CAN Matrix file (.dbc)"}
+                <UploadCloudIcon className={`w-12 h-12 text-gray-500 group-hover:text-blue-400 transition-colors duration-300 ${isDragging ? 'text-blue-400' : ''}`} />
+                <div>
+                  <p className="text-gray-300 text-lg">
+                      <span className="font-semibold text-blue-400">{title}</span>
+                  </p>
+                  <p className="text-sm text-gray-500">{description}</p>
+                </div>
+                 <p className="text-xs text-gray-500 pt-2">
+                     {accept ? `Supported: ${accept.split(',').join(', ')}` : "Any text-based log or Excel file"}
                 </p>
             </div>
         </div>
