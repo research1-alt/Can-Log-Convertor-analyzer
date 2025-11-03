@@ -213,7 +213,18 @@ export const parseDecodedFile = async (file: File): Promise<CANMessage[]> => {
         throw new Error("Could not find a timestamp column in the first column of the decoded file.");
     }
 
-    return jsonData.map(row => {
+    const messages: CANMessage[] = [];
+    for (const row of jsonData) {
+        // Handle rows that might be empty or invalid
+        if (!row || row[timestampHeader] === null || row[timestampHeader] === undefined) continue;
+
+        const timestamp = parseFloat(String(row[timestampHeader]));
+
+        if (isNaN(timestamp)) {
+            console.warn('Skipping row due to invalid timestamp:', row);
+            continue;
+        }
+
         const decodedSignals: { [key: string]: number } = {};
         signalHeaders.forEach(signalName => {
             const value = parseFloat(row[signalName]);
@@ -222,15 +233,18 @@ export const parseDecodedFile = async (file: File): Promise<CANMessage[]> => {
             }
         });
 
-        return {
-            timestamp: row[timestampHeader],
-            id: 'DECODED_DATA', // Placeholder ID
-            dlc: 0,
-            data: [],
-            isTx: false,
-            decoded: decodedSignals
-        };
-    }).filter(msg => msg.decoded && Object.keys(msg.decoded).length > 0);
+        if (Object.keys(decodedSignals).length > 0) {
+             messages.push({
+                timestamp: timestamp,
+                id: 'DECODED_DATA', // Placeholder ID
+                dlc: 0,
+                data: [],
+                isTx: false,
+                decoded: decodedSignals
+            });
+        }
+    }
+    return messages;
 };
 
 export const parseCanLogFile = (content: string, fileName: string): CANMessage[] => {
