@@ -2,7 +2,6 @@
 import React, { useState, useCallback } from 'react';
 import { FileUpload } from './FileUpload';
 import { Spinner } from './Spinner';
-import { parseCanLogFile, decodeMessages, parseExcelFile, parseDecodedFile } from '../services/canParser';
 import { defaultMatrix } from '../services/defaultMatrix';
 import type { CANMessage } from '../types';
 import { FileIcon, AlertTriangleIcon, CodeBracketIcon, ChartBarIcon, ComputerDesktopIcon } from './IconComponents';
@@ -47,6 +46,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
         setError(null);
 
         try {
+            const { parseCanLogFile, decodeMessages, parseExcelFile } = await import('../services/canParser');
             let allMessages: CANMessage[] = [];
 
             for (let i = 0; i < files.length; i++) {
@@ -90,6 +90,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onDataProcessed }) => {
         setError(null);
         
         try {
+            const { parseDecodedFile } = await import('../services/canParser');
             const messages = await parseDecodedFile(files[0]);
             if (messages.length === 0) {
                 setError('No data found in the provided file.');
