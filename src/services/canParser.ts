@@ -1,3 +1,4 @@
+
 import * as XLSX from 'xlsx';
 import type { CANMessage, CanMatrix, SignalDefinition } from '../types';
 
@@ -7,7 +8,59 @@ const TRC_REGEX = /^\s*\d+\)\s+(\d+(?:\.\d+)?)\s+(Rx|Tx)\s+([0-9A-Fa-fxX]+)\s+\d
 const PCAN_VIEW_REGEX = /^\s*\d+\s+([\d.]+)\s+\w+\s+([0-9A-Fa-fxX]+)\s+(Rx|Tx)\s+\d+\s*([0-9A-Fa-f\s]*)$/;
 const PCAN_V5_REGEX = /^\s*\d+\)\s+([\d.]+)\s+(Rx|Tx)\s+([0-9A-Fa-f]+)\s+\d+\s*([0-9A-Fa-f\s]*)$/;
 const CUSTOM_FORMAT_REGEX = /^\s*(\d+)\s+(0x[0-9A-Fa-f]+|[0-9A-Fa-f]+)\s+(\d+)\s+([0-9A-Fa-f\s]*)\s*$/;
+const BUSMASTER_PIPE_REGEX = /^\s*[\d-]+\s*\|\s*(\d+)\s*\|\s*([0-9A-Fa-fxX]+)\s*\|\s*(\d+)\s*\|\s*([0-9A-Fa-f\s]+)\s*$/;
+const BUSMASTER_V3_REGEX = /^(\d{1,2}:\d{1,2}:\d{1,2}:\d{4})\s+(Rx|Tx)\s+\d+\s+([0-9A-Fa-fxX]+)\s+([a-zA-Z])\s+(\d+)(?:\s+([0-9A-Fa-f\s]*))?$/;
 
+
+const parseBusMasterPipeLine = (line: string): CANMessage | null => {
+    const match = line.match(BUSMASTER_PIPE_REGEX);
+    if (!match) return null;
+
+    const [, timestamp, id, dlc, rawData] = match;
+    const data = rawData.trim().split(/\s+/).filter(Boolean);
+    const parsedId = id.toLowerCase().startsWith('0x') ? id : `0x${id}`;
+    
+    let parsedTimestamp = parseFloat(timestamp);
+    if (Number.isInteger(parsedTimestamp)) {
+        parsedTimestamp /= 1000.0;
+    }
+
+    return {
+        timestamp: parsedTimestamp,
+        id: parsedId.toUpperCase(),
+        dlc: parseInt(dlc, 10),
+        data: data.map(byte => byte.toUpperCase()),
+        isTx: false, 
+    };
+};
+
+const parseBusMasterV3Line = (line: string): CANMessage | null => {
+    const match = line.match(BUSMASTER_V3_REGEX);
+    if (!match) return null;
+
+    const [_, timeStr, direction, id, _type, dlc, rawData] = match;
+    
+    const timeParts = timeStr.split(':');
+    if (timeParts.length !== 4) return null;
+
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+    const seconds = parseInt(timeParts[2], 10);
+    const milliseconds = parseInt(timeParts[3], 10);
+    
+    const absoluteTimestamp = (hours * 3600) + (minutes * 60) + seconds + (milliseconds / 1000.0);
+
+    const data = (rawData || '').trim().split(/\s+/).filter(Boolean);
+    const parsedId = id.toLowerCase().startsWith('0x') ? id : `0x${id}`;
+    
+    return {
+        timestamp: absoluteTimestamp,
+        id: parsedId.toUpperCase(),
+        dlc: parseInt(dlc, 10),
+        data: data.map(byte => byte.toUpperCase()),
+        isTx: direction === 'Tx',
+    };
+};
 
 const parseCustomFormatLine = (line: string): CANMessage | null => {
     const lowerLine = line.toLowerCase();
@@ -21,9 +74,14 @@ const parseCustomFormatLine = (line: string): CANMessage | null => {
     const [, timestamp, id, dlc, rawData] = match;
     const data = rawData.trim().split(/\s+/).filter(Boolean);
     const parsedId = id.toLowerCase().startsWith('0x') ? id : `0x${id}`;
+    
+    let parsedTimestamp = parseFloat(timestamp);
+    if (Number.isInteger(parsedTimestamp)) {
+        parsedTimestamp /= 1000.0;
+    }
 
     return {
-        timestamp: parseInt(timestamp, 10),
+        timestamp: parsedTimestamp,
         id: parsedId.toUpperCase(),
         dlc: parseInt(dlc, 10),
         data: data.map(byte => byte.toUpperCase()),
@@ -37,9 +95,14 @@ const parseLogLine = (line: string): CANMessage | null => {
 
     const [, timestamp, id, rawData] = match;
     const data = rawData.match(/.{1,2}/g) || [];
+    
+    let parsedTimestamp = parseFloat(timestamp);
+    if (Number.isInteger(parsedTimestamp)) {
+        parsedTimestamp /= 1000.0;
+    }
 
     return {
-        timestamp: parseFloat(timestamp),
+        timestamp: parsedTimestamp,
         id: `0x${id.toUpperCase()}`,
         dlc: data.length,
         data: data.map(byte => byte.toUpperCase()),
@@ -53,9 +116,14 @@ const parseTrcLine = (line: string): CANMessage | null => {
 
     const [, timestamp, direction, id, rawData] = match;
     const data = rawData.trim().split(/\s+/).filter(Boolean);
+    
+    let parsedTimestamp = parseFloat(timestamp);
+    if (Number.isInteger(parsedTimestamp)) {
+        parsedTimestamp /= 1000.0;
+    }
 
     return {
-        timestamp: parseFloat(timestamp),
+        timestamp: parsedTimestamp,
         id: id.startsWith('0x') ? id.toUpperCase() : `0x${id.toUpperCase()}`,
         dlc: data.length,
         data: data.map(byte => byte.toUpperCase()),
@@ -146,9 +214,14 @@ export const parseExcelFile = async (file: File): Promise<CANMessage[]> => {
             const idStr = String(id);
             const dataStr = String(rawData).trim().replace(/0x/gi, '');
             const dataBytes = dataStr.split(/[\s,]+/).filter(Boolean);
+            
+            let parsedTimestamp = parseFloat(String(timestamp));
+            if (Number.isInteger(parsedTimestamp)) {
+                parsedTimestamp /= 1000.0;
+            }
 
             const message: CANMessage = {
-                timestamp: parseFloat(String(timestamp)),
+                timestamp: parsedTimestamp,
                 id: idStr.startsWith('0x') ? idStr.toUpperCase() : `0x${idStr.toUpperCase()}`,
                 dlc: parseInt(String(dlc), 10),
                 data: dataBytes.map(byte => byte.toUpperCase()),
@@ -171,31 +244,60 @@ export const parseExcelFile = async (file: File): Promise<CANMessage[]> => {
 
 export const parseCanLogFile = (content: string, fileName: string): CANMessage[] => {
     const lines = content.split(/\r?\n/);
-    const lowerFileName = fileName.toLowerCase();
     const messages: CANMessage[] = [];
 
-    const logParsers = [parseCustomFormatLine, parseLogLine, parsePcanV5Line, parseTrcLine, parsePcanViewLine];
-    const trcParsers = [parseCustomFormatLine, parsePcanV5Line, parseTrcLine, parsePcanViewLine, parseLogLine];
+    const isBusMasterV3 = content.includes('***BUSMASTER Ver');
 
-    let orderedParsers = DEFAULT_PARSER_FOR_UNKNOWN_TYPES === 'log' ? logParsers : trcParsers;
-    if (lowerFileName.endsWith('.log')) {
-        orderedParsers = logParsers;
-    } else if (lowerFileName.endsWith('.trc')) {
-        orderedParsers = trcParsers;
-    }
+    const parsers = [
+        parseBusMasterV3Line,
+        parseBusMasterPipeLine,
+        parseCustomFormatLine,
+        parseLogLine,
+        parsePcanV5Line,
+        parseTrcLine,
+        parsePcanViewLine
+    ];
 
+    let detectedParser: ((line: string) => CANMessage | null) | null = null;
+    
     for (const line of lines) {
         const trimmedLine = line.trim();
-        if (!trimmedLine || trimmedLine.startsWith(';')) {
+        if (!trimmedLine) {
             continue;
         }
 
-        for (const parser of orderedParsers) {
-            const message = parser(trimmedLine);
+        if (isBusMasterV3) {
+            if (!/^\d/.test(trimmedLine)) {
+                continue; 
+            }
+        } else if (/^(;|\*\*|=====|Date\s\||---)/.test(trimmedLine)) {
+            continue;
+        }
+
+        if (detectedParser) {
+            const message = detectedParser(trimmedLine);
             if (message) {
                 messages.push(message);
-                break;
             }
+        } else {
+            for (const parser of parsers) {
+                const message = parser(trimmedLine);
+                if (message) {
+                    messages.push(message);
+                    detectedParser = parser;
+                    break;
+                }
+            }
+        }
+    }
+    
+    if (detectedParser === parseBusMasterV3Line && messages.length > 0) {
+        const firstTimestamp = Number(messages[0].timestamp);
+        if (!isNaN(firstTimestamp)) {
+            return messages.map(msg => ({
+                ...msg,
+                timestamp: parseFloat((Number(msg.timestamp) - firstTimestamp).toPrecision(10))
+            }));
         }
     }
 

@@ -6,7 +6,6 @@ import { FaultAnalysis } from './FaultAnalysis';
 import { getInitialAnalysisPrompt, getSystemInstruction, canDataQueryTool, modelName } from '../services/geminiService';
 import { defaultMatrix } from '../services/defaultMatrix';
 import type { CANMessage, ChatMessage } from '../types';
-// Fix: Import AlertTriangleIcon to resolve usage error.
 import { SparklesIcon, LineChartIcon, DocumentTextIcon, RefreshCwIcon, ArrowLeftIcon, ListIcon, AlertTriangleIcon } from './IconComponents';
 import { GoogleGenAI } from '@google/genai';
 import type { Content } from '@google/genai';
@@ -166,15 +165,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
     }, [processedMessages]);
     
     const handleAnalyze = async () => {
-        if (processedMessages.length === 0) {
-            setError('No processed data available to analyze. Please process files first.');
-            return;
-        }
         setIsAnalyzing(true);
         setError(null);
 
         try {
-            // FIX: Use process.env.API_KEY as per guidelines
+            // FIX: Use process.env.API_KEY directly as per the coding guidelines.
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const initialPrompt = getInitialAnalysisPrompt();
             setInitialPromptText(initialPrompt);
@@ -200,9 +195,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
                 setChatHistory(prev => [...prev, modelResponsePart]);
             }
         } catch (err) {
-            // FIX: Removed API Key specific error message
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during analysis.';
-            setError(`Failed to start analysis. ${errorMessage}.`);
+            setError(`Failed to start analysis. ${errorMessage}`);
         } finally {
             setIsAnalyzing(false);
         }
@@ -211,6 +205,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
     const handleSendChatMessage = async (message: string) => {
         setIsAnalyzing(true);
         setError(null);
+
         const newUserContent: Content = { role: 'user', parts: [{ text: message }] };
         
         setChatHistory(prevHistory => {
@@ -218,7 +213,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
             
             const getResponse = async () => {
                 try {
-                    // FIX: Use process.env.API_KEY as per guidelines
+                    // FIX: Use process.env.API_KEY directly as per the coding guidelines.
                     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
                     let response = await ai.models.generateContent({
                         model: modelName,
@@ -263,9 +258,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ initialMessages, i
                          setChatHistory(prev => [...prev, modelResponsePart]);
                     }
                 } catch(err) {
-                     // FIX: Removed API Key specific error message
                      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-                    setError(`Failed to get response. ${errorMessage}.`);
+                    setError(`Failed to get response. ${errorMessage}`);
                 } finally {
                     setIsAnalyzing(false);
                 }
